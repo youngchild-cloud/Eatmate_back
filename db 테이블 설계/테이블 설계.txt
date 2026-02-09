@@ -1,0 +1,108 @@
+[사용자 회원] user | u_
+- no                  u_no
+- 아이디              u_id
+- 비밀번호            u_pw
+- 닉네임              u_nick
+- 내 소개글           u_desc
+- 프로필 사진         u_pic
+- 뱃지(vip, gold...) u_badge
+- 등록 날짜/시간      u_date
+
+
+[관리자 회원] admin_user | au_
+- no                  au_no   
+- 아이디              au_id
+- 비밀번호            au_pw
+- 이름                au_name
+- 프로필 사진         au_pic
+- 등록 날짜/시간      au_date
+
+
+[맛집 정보] restaurant | rt_
+- no                  rt_no
+- 사진(대표)           rt_img
+- 사진(서브1)          rt_img2
+- 사진(서브2)          rt_img3
+- 사진(서브3)          rt_img4
+- 사진(서브4)          rt_img5
+- 맛집명               rt_img2
+- 소개 === 본문글       rt_desc
+- 평균 평점             rt_rank
+- 총 리뷰수             rt_review
+- 맛집 카테고리         rt_cate
+- 위치(간략하게 00시 00구 00동)   rt_location
+- 전화번호              rt_tel
+- 길찾기 url >>> 카카오맵 api를 쓰면 없어도 될 듯?    rt_map
+- 등록 날짜/시간        rt_date
+
+
+[맛집 리뷰 게시글] board_review | br_
+- no                                br_no
+- 테이블명(카테고리) ex. 맛집 정보    br_board_cate
+- 회원 테이블의 회원 no               br_user_no
+- 평점                              br_rank
+- 사진(대표)                         br_img
+- 사진(서브1)                        br_img2
+- 사진(서브2)                        br_img3
+- 사진(서브3)                        br_img4
+- 사진(서브4)                        br_img5
+- 리뷰 === 본문글                    br_desc
+- 맛집명                             br_ras
+- 하트 수                            br_heaert
+- 댓글 수                            br_comment
+- 등록 날짜/시간                      br_date
+
+
+[맛집 탐방 게시글] board_meetup | bm_
+- no                                bm_no
+- 테이블명(카테고리) ex. 맛집 탐방    bm_board_cate
+- 회원 테이블의 회원 no              bm_user_no
+- 사진(대표)                        bm_img
+- 사진(서브1)                       bm_img2
+- 사진(서브2)                       bm_img3
+- 사진(서브3)                       bm_img4
+- 사진(서브4)                       bm_img5
+- 제목                              bm_title
+- 내용 === 본문글                    bm_desc
+- 탐방 날짜                          bm_m_date
+- 탐방 맛집명                        bm_m_res
+- 탐방 인원수(신청한 사람)            bm_m_people
+- 탐방 인원수(정원 === 전체 사람)     bm_m_people-all
+- 하트 수                            bm_heart
+- 댓글 수                            bm_comment
+- 등록 날짜/시간                      bm_date
+
+
+[자유게시판 게시글] board_community | bc_
+- no                                bc_no
+- 테이블명(카테고리) ex. 자유게시판   bc_board_cate
+- 회원 테이블의 회원 no              bc_user_no
+- 제목                              bc_title
+- 내용 === 본문글                   bc_desc
+- 하트 수                           bc_heart
+- 댓글 수                           bc_comment
+- 등록 날짜/시간                    bc_date
+
+
+[게시판 댓글] comment || ct_
+- no                                                          ct_no
+- 회원 테이블의 회원 no                                         ct_user_no
+- 게시판(맛집 리뷰, 맛집 탐방, 자유게시판) 테이블 카테고리        ct_board_cate
+- 게시판(맛집 리뷰, 맛집 탐방, 자유게시판) 테이블의 게시물 no     ct_board_no
+- 댓글 === 본문글                                              ct_desc
+- 등록 날짜/시간                                               ct_date
+
+
+[게시판 하트] heart || ht_
+- no                                                          ht_no
+- 회원 테이블의 회원 no                                         ht_user_no
+- 게시판(맛집 리뷰, 맛집 탐방, 자유게시판) 테이블 카테고리        ht_board_cate
+- 게시판(맛집 리뷰, 맛집 탐방, 자유게시판) 테이블의 게시물 no     ht_board_no
+- 등록 날짜/시간                                               ht_date
+
+
+[맛집 북마크] bookmark || bk_
+- no                                                          bk_no
+- 회원 테이블의 회원 no                                        bk_user_no
+- 맛집 테이블의 게시물 no                                      bk_rt_no
+- 등록 날짜/시간                                               bk_date
