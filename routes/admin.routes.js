@@ -26,7 +26,7 @@ router.post('/admin/idcheck', (req, res) => {
 // 회원가입
 router.post('/admin/join', uploadAdminUser.single('au_pic'), async (req, res) => {
   const { au_id, au_pw, au_name } = req.body;
-  const au_pic = req.file ? req.file.filename : null;
+  const au_pic = req.file ? req.file.filename : 'default-user.jpg';
 
   try {
     const sql = `INSERT INTO admin_users (au_id, au_pw, au_name, au_pic) VALUES (?,?,?,?)`;
@@ -258,6 +258,76 @@ router.put('/admin/review', uploadReview.single('br_img'), (req, res) => {
       }
     )
   }
+})
+
+// [맛집 리뷰 목록] 삭제
+router.delete('/admin/meetup/:bm_no', (req, res) => {
+  const bm_no = req.params.bm_no;
+  connection.query(
+    'DELETE FROM board_meetup WHERE bm_no = ?', [bm_no],
+    (err, result) => {
+      if (err) {
+        console.log('삭제 오류 : ', err);
+        return res.status(500).json({ error: '삭제 실패' });
+      }
+      res.json({ success: '삭제 완료' });
+    }
+  )
+});
+
+// [맛집 리뷰 수정] 조회
+router.get('/admin/meetup/modify/:bm_no', (req, res) => {
+  const bm_no = req.params.bm_no;
+
+  connection.query(
+    `SELECT 
+      bm_no, bm_m_res, bm_img, bm_title, bm_desc,
+      DATE_FORMAT(bm_m_date, '%Y-%m-%d') AS bm_m_date,
+      bm_m_people_all
+    FROM board_meetup
+    WHERE bm_no = ?`,
+    [bm_no],
+    (err, result) => {
+      if (err) {
+        console.log(err);
+        return res.status(500).json({ error: 'DB 조회 오류' });
+      }
+      res.json(result[0]);
+    }
+  )
+})
+
+// [자유게시판 목록] 삭제
+router.delete('/admin/community/:bc_no', (req, res) => {
+  const bc_no = req.params.bc_no;
+  connection.query(
+    'DELETE FROM board_community WHERE bc_no = ?', [bc_no],
+    (err, result) => {
+      if (err) {
+        console.log('삭제 오류 : ', err);
+        return res.status(500).json({ error: '삭제 실패' });
+      }
+      res.json({ success: '삭제 완료' });
+    }
+  )
+})
+
+// [자유게시판 수정] 수정
+router.put('/community/update/:bc_no', (req, res) => {
+  const bc_no = req.params.bc_no;
+  const { bc_title, bc_desc } = req.body;
+
+  connection.query(
+    'UPDATE board_community SET bc_title =? , bc_desc=? where bc_no= ?', [bc_title, bc_desc, bc_no],
+    (err, result) => {
+      if (err) {
+        console.log('수정 오류 : ', err);
+        res.status(500).json({ error: '수정 실패' });
+        return;
+      }
+      res.json({ success: true });
+    }
+  )
 })
 
 /*** 회원 관리 ***/

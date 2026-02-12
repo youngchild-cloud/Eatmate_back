@@ -1,7 +1,7 @@
 const mysql = require('mysql'); // 또는 mysql2
 
 const connection = mysql.createConnection({
-  host: 'mariadb',
+  host: 'localhost',
   user: 'root',
   password: '1234',
   database: 'eatmate'

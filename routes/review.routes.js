@@ -76,7 +76,8 @@ router.get('/review', (req, res) => {
 });
 
 
-/*** [맛집 리뷰 - 상세] 조회 review/detail ***/
+/*** [맛집 리뷰 - 상세] review/detail ***/
+// 조회
 router.post('/review/detail/:br_no', (req, res) => {
   const { br_no } = req.params;
 
@@ -95,6 +96,62 @@ router.post('/review/detail/:br_no', (req, res) => {
     }
   );
 })
+
+// 삭제
+router.delete('/review/detail/:br_no', (req, res) => {
+  const { br_no } = req.params;
+
+  // 1) 삭제할 리뷰의 맛집 번호 먼저 가져오기
+  connection.query(
+    'SELECT br_rt_no FROM board_review WHERE br_no = ?',
+    [br_no],
+    (err, rows) => {
+      if (err) return res.status(500).json({ message: 'DB 조회 오류' });
+      if (!rows || rows.length === 0) return res.status(404).json({ message: '해당 리뷰가 없습니다' });
+
+      const br_rt_no = rows[0].br_rt_no;
+
+      // 2) 리뷰 삭제
+      connection.query(
+        'DELETE FROM board_review WHERE br_no = ?',
+        [br_no],
+        (err2, result2) => {
+          if (err2) return res.status(500).json({ message: 'DB 삭제 오류' });
+
+          // 3) 총 리뷰 수 업데이트 (0 아래로 내려가지 않게)
+          connection.query(
+            `UPDATE restaurant
+            SET rt_review = CASE WHEN rt_review > 0 THEN rt_review - 1 ELSE 0 END
+            WHERE rt_no = ?`,
+            [br_rt_no],
+            (err3) => {
+              if (err3) return res.status(500).json({ message: '총 리뷰 수 업데이트 오류' });
+
+              // 4) 평균 평점 업데이트 (리뷰가 0개면 0.0)
+              connection.query(
+                `UPDATE restaurant r
+                LEFT JOIN (
+                  SELECT br_rt_no, ROUND(AVG(br_rank), 1) AS avg_rank
+                  FROM board_review
+                  WHERE br_rt_no = ?
+                ) t ON r.rt_no = t.br_rt_no
+                SET r.rt_rank = IFNULL(t.avg_rank, 0.0)
+                WHERE r.rt_no = ?`,
+                [br_rt_no, br_rt_no],
+                (err4) => {
+                  if (err4) return res.status(500).json({ message: '평균 평점 업데이트 오류' });
+
+                  return res.json({ message: '삭제 완료' });
+                }
+              );
+            }
+          );
+        }
+      );
+    }
+  );
+});
+
 
 /*** [맛집 - 목록] 조회 review/restaurant ***/
 router.post('/restaurant', (req, res) => {
@@ -159,15 +216,25 @@ router.get('/restaurant/detail/:rt_no', (req, res) => {
 })
 
 // 저장(bookmark)
+// 북마크 여부 조회
+router.get('/bookmark/check', (req, res) => {
+  const { user_no, rt_no } = req.query;
+
+  const sql = 'SELECT 1 FROM bookmark WHERE bk_user_no = ? AND bk_rt_no = ? LIMIT 1';
+  connection.query(sql, [user_no, rt_no], (err, rows) => {
+    if (err) return res.status(500).json({ error: 'DB 조회 오류' });
+    res.json({ isBookmarked: rows.length > 0 });
+  });
+});
+
+// 북마크 실행
 router.post('/bookmark', (req, res) => {
   const { bk_user_no, bk_rt_no, toggle } = req.body;
 
   const sql =
     toggle
-      ?
-      'INSERT INTO bookmark(bk_user_no, bk_rt_no) VALUES(?, ?)'
-      :
-      'DELETE FROM bookmark WHERE bk_user_no = ? && bk_rt_no = ?'
+      ? 'INSERT IGNORE INTO bookmark(bk_user_no, bk_rt_no) VALUES(?, ?)'
+      : 'DELETE FROM bookmark WHERE bk_user_no = ? AND bk_rt_no = ?'
 
   connection.query(sql, [bk_user_no, bk_rt_no], (err, result) => {
     if (err) {
@@ -223,18 +290,137 @@ router.post('/write/review', upload.single('br_img'), (req, res) => {
   const { br_user_no, br_rank, br_desc, br_rt_no } = req.body;
   const br_img = req.file ? req.file.filename : null;
 
+  // 등록 쿼리
   connection.query(
-    'INSERT INTO board_review(br_user_no, br_rank, br_img, br_desc, br_rt_no) VALUES(?, ?, ?, ?, ?)',
+    `INSERT INTO 
+    board_review(br_user_no, br_rank, br_img, br_desc, br_rt_no)
+    VALUES(?, ?, ?, ?, ?)`,
     [br_user_no, br_rank, br_img, br_desc, br_rt_no],
     (err, result) => {
-      if (err) {
-        console.log(err);
-        return res.status(500).json({ error: 'DB 입력 오류' });
-      }
+      if (err) return res.status(500).json({ error: 'DB 입력 오류' });
 
-      res.json({ success: '등록 성공' });
+      // 총 리뷰 수 업데이트 쿼리
+      connection.query(
+        `UPDATE restaurant 
+        SET rt_review = rt_review + 1 
+        WHERE rt_no = ?`,
+        [br_rt_no],
+        (err2) => {
+          if (err2) return res.status(500).json({ error: '총 리뷰 수 업데이트 오류' });
+
+          // 평균 평점 업데이트 쿼리
+          connection.query(
+            `UPDATE restaurant r
+            JOIN (SELECT br_rt_no, ROUND(AVG(br_rank), 1) AS avg_rank
+                  FROM board_review
+                  WHERE br_rt_no = ?) t 
+              ON r.rt_no = t.br_rt_no
+            SET r.rt_rank = t.avg_rank`,
+            [br_rt_no],
+            (err3) => {
+              if (err3) return res.status(500).json({ error: '평균 평점 업데이트 오류' });
+
+              return res.json({ br_no: result.insertId, success: true });
+            }
+          );
+        }
+      );
+    }
+  );
+});
+
+// 본인이 쓴 게시글인 경우 수정이 가능
+// 1. 조회
+router.get('/write/review/modify/:br_no', (req, res) => {
+  const br_no = req.params.br_no;
+
+  connection.query(
+    `SELECT board_review.*, restaurant.*
+    FROM board_review 
+    INNER JOIN restaurant
+      ON board_review.br_rt_no = restaurant.rt_no
+    WHERE br_no = ?`,
+    [br_no],
+    (err, result) => {
+      if (err) return res.status(500).json({ message: 'DB 조회 오류' });
+
+      res.json(result[0]);
     }
   )
+})
+
+// 2. 수정
+router.put('/write/review/modify/:br_no', upload.single('br_img'), (req, res) => {
+  const br_no = req.params.br_no;
+  const { br_rank, br_desc, br_rt_no } = req.body
+  const br_img = req.file ? req.file.filename : null;
+
+  // 이미지 파일을 재선택 했을 떄 쿼리문
+  const sqlWithPic = `
+    UPDATE board_review 
+    SET br_img = ?, br_rt_no = ?, br_desc = ?, br_rank = ?
+    WHERE br_no = ?
+  `;
+
+  // 이미지 파일을 재선택 안했을 때 쿼리문
+  const sqlWithoutPic = `
+    UPDATE board_review 
+    SET br_rt_no = ?, br_desc = ?, br_rank = ? 
+    WHERE br_no = ?
+  `;
+
+  // 평균 평점 업데이트 쿼리문
+  const updateAvgRankSql = `
+    UPDATE restaurant r
+    JOIN (
+      SELECT br_rt_no, ROUND(AVG(br_rank), 1) AS avg_rank
+      FROM board_review
+      WHERE br_rt_no = ?
+    ) t ON r.rt_no = t.br_rt_no
+    SET r.rt_rank = t.avg_rank
+  `;
+
+  if (req.file) {
+    connection.query(
+      sqlWithPic,
+      [br_img, br_rt_no, br_desc, br_rank, br_no],
+      (err, result) => {
+        if (err) {
+          console.log(err);
+          return res.status(500).json({ error: 'DB 맛집 리뷰 수정 실패' });
+        }
+
+        // 평균 평점 업데이트
+        connection.query(updateAvgRankSql, [br_rt_no], (err2) => {
+          if (err2) {
+            console.log(err2);
+            return res.status(500).json({ error: '평균 평점 업데이트 오류' });
+          }
+          return res.json({ success: '수정 완료' });
+        });
+      }
+    )
+  } else {
+    connection.query(
+      sqlWithoutPic,
+      [br_rt_no, br_desc, br_rank, br_no],
+      (err, result) => {
+        if (err) {
+          console.log(err);
+          return res.status(500).json({ error: 'DB 맛집 리뷰 수정 실패' });
+        }
+
+        // 평균 평점 업데이트
+        connection.query(updateAvgRankSql, [br_rt_no], (err2) => {
+          if (err2) {
+            console.log(err2);
+            return res.status(500).json({ error: '평균 평점 업데이트 오류' });
+          }
+          return res.json({ success: '수정 완료' });
+        });
+      }
+    )
+  }
 })
 
 module.exports = router;

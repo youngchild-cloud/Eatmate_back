@@ -24,6 +24,28 @@ router.get('/mypage/:user_no', (req, res) => {
 })
 
 /*** [프로필 수정] ***/
+// 닉네임 중복 확인
+router.post('/nickcheck', (req, res) => {
+  const { u_nick } = req.body;
+
+  connection.query(
+    'SELECT * FROM users WHERE u_nick = ?',
+    [u_nick],
+    (err, result) => {
+      if (err) {
+        console.log(err);
+        return res.status(500).json({ message: 'DB 조회 오류' });
+      }
+
+      // 중복 여부 판단
+      if (result.length > 0) {
+        return res.status(409).json({ message: '이미 사용 중인 닉네임입니다.' });
+      }
+      return res.json({ message: '사용 가능한 닉네임입니다.' });
+    }
+  )
+})
+
 // 업로드 저장 위치/파일명 설정
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, 'uploads/user'),
@@ -44,33 +66,34 @@ const upload = multer({
   },
 });
 
+// 수정 쿼리문
 router.put('/mypage/profile/modify', upload.single('u_pic'), async (req, res) => {
   try {
-    const { u_id, u_pw, u_desc } = req.body;
+    const { u_id, u_pw, u_nick, u_desc } = req.body;
     const hash_pw = await bcrypt.hash(u_pw, 10);
 
     // 이미지 파일을 재선택 했을 떄 쿼리문
     const sqlWithPic = `
       UPDATE users 
-      SET u_pw = ?, u_desc = ?, u_pic = ?
+      SET u_pw = ?, u_nick= ?, u_desc = ?, u_pic = ?
       WHERE u_id = ?
     `;
 
     // 이미지 파일을 재선택 안했을 때 쿼리문
     const sqlWithoutPic = `
       UPDATE users 
-      SET u_pw = ?, u_desc = ?
+      SET u_pw = ?, u_nick= ?, u_desc = ?
       WHERE u_id = ?
     `;
 
     if (req.file) {
       const u_pic = req.file.filename;
-      connection.query(sqlWithPic, [hash_pw, u_desc, u_pic, u_id], (err) => {
+      connection.query(sqlWithPic, [hash_pw, u_nick, u_desc, u_pic, u_id], (err) => {
         if (err) return res.status(500).json({ error: '프로필 수정 실패' });
         return res.json({ success: true });
       });
     } else {
-      connection.query(sqlWithoutPic, [hash_pw, u_desc, u_id], (err) => {
+      connection.query(sqlWithoutPic, [hash_pw, u_nick, u_desc, u_id], (err) => {
         if (err) return res.status(500).json({ error: '프로필 수정 실패' });
         return res.json({ success: true });
       });
@@ -81,7 +104,8 @@ router.put('/mypage/profile/modify', upload.single('u_pic'), async (req, res) =>
 });
 
 
-//////////////마이페이지 맛집탐방 신청내역
+/*** [맛집탐방 신청내역] ***/
+// 조회
 router.get('/mymeetup', (req, res) => {
   const { user_no } = req.query;
 
@@ -99,7 +123,8 @@ router.get('/mymeetup', (req, res) => {
     }
   )
 })
-////삭제
+
+// 삭제
 router.delete('/delmeetup/:bm_no', (req, res) => {
   const bm_no = req.params.bm_no;
   connection.query(
@@ -115,5 +140,46 @@ router.delete('/delmeetup/:bm_no', (req, res) => {
     }
   );
 })
+
+//수정
+router.put('/mypage/profile/modify/:user_no', upload.single('u_pic'), (req, res) => {
+  const { user_no } = req.params;
+  const { u_nick, u_desc } = req.body;
+
+  const sqlWithPic = `
+    UPDATE users
+    SET u_nick = ?, u_desc = ?, u_pic = ?
+    WHERE u_no = ?
+  `;
+
+  const sqlWithoutPic = `
+    UPDATE users
+    SET u_nick = ?, u_desc = ?
+    WHERE u_no = ?
+  `;
+
+  if (req.file) {
+    const u_pic = req.file.filename;
+
+    connection.query(
+      sqlWithPic,
+      [u_nick, u_desc, u_pic, user_no],
+      (err) => {
+        if (err) return res.status(500).json({ error: '프로필 수정 실패' });
+        return res.json({ success: true });
+      }
+    );
+  } else {
+    connection.query(
+      sqlWithoutPic,
+      [u_nick, u_desc, user_no],
+      (err) => {
+        if (err) return res.status(500).json({ error: '프로필 수정 실패' });
+        return res.json({ success: true });
+      }
+    );
+  }
+});
+
 
 module.exports = router;

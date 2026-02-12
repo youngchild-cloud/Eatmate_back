@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const { SECRET_KEY } = require('../config/jwt');
 const multer = require('multer');
 const path = require('path');
+const authMiddleware = require('../config/authMiddleware');
 
 
 // 맛집 탐방 meetup - 목록 조회
@@ -103,7 +104,7 @@ const upload = multer({
 });
 
 // 맛집 탐방 meetup - 게시물 등록
-router.post('/meetup', upload.single('bm_img'), (req, res) => {
+router.post('/meetup', authMiddleware, upload.single('bm_img'), (req, res) => {
   const { bm_user_no, bm_m_res, bm_title, bm_desc, bm_m_date, bm_m_people_all } = req.body;
   const bm_img = req.file ? req.file.filename : null;
 
@@ -124,12 +125,28 @@ router.post('/meetup', upload.single('bm_img'), (req, res) => {
     ['meetup', bm_user_no, bm_m_res, bm_title, bm_desc, bm_m_date, peopleAll, bm_img],
     (err, results) => {
       if (err) {
-        console.log('등록오류:', err);
-        return res.status(500).json({ error: '데이터 등록 실패' });
+        // console.log('등록오류:', err);
+        // return res.status(500).json({ error: '데이터 등록 실패' });
+        return connection.rollback(() => {
+          res.status(500).json({ error: '등록실패' });
+        })
       }
-      res.json({ success: true, insertId: results.insertId });
+      const bm_no = results.insertId;
+      connection.query(
+        `INSERT INTO meetup_join (bm_no,u_no) VALUES (?,?)`, [bm_no, bm_user_no],
+        (err) => {
+          if (err) {
+            return connection.rollback(() => {
+              res.status(500).json({ error: '작성자 참석 실패' });
+            })
+          }
+          res.json({ success: true, bm_no });
+        }
+      )
+      // res.json({ success: true, insertId: results.insertId });
     }
   );
+
 });
 
 ///////////////////맛집탐방 참석내역에 있는지 확인
@@ -189,21 +206,6 @@ router.delete('/meetup_join', (req, res) => {
     }
   );
 })
-
-//맛집 탐방 게시글 삭제하기 (관리자페이지)
-router.delete('/admin/meetup/:bm_no', (req, res) => {
-  const bm_no = req.params.bm_no;
-  connection.query(
-    'DELETE FROM board_meetup WHERE bm_no = ?', [bm_no],
-    (err, result) => {
-      if (err) {
-        console.log('삭제 오류 : ', err);
-        return res.status(500).json({ error: '삭제 실패' });
-      }
-      res.json({ success: '삭제 완료' });
-    }
-  )
-});
 
 //맛집탐방 게시글 수정 - 조회
 router.get('/meetup/modify/:bm_no', (req, res) => {
